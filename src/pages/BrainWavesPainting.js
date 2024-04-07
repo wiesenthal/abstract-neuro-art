@@ -3,7 +3,7 @@ import { navigate } from "@reach/router";
 
 import { useSync } from "../hooks/useSync";
 import { notion, useNotion } from "../services/notion";
-import BrainWaveDot from "./BrainWaveDot";
+import BrainWaveDots from "./BrainWaveDots";
 
 
 // Brainwaves Shape: 
@@ -63,24 +63,71 @@ import BrainWaveDot from "./BrainWaveDot";
 // }
 // }
 
+const bands = ["alpha", "beta", "delta", "gamma", "theta"];
+const channel_names = ["CP3", "C3", "F5", "PO3", "PO4", "F6", "C4", "CP4"];
+const positions = {
+  "CP3": [-1, 1],
+  "C3": [-1, -1],
+  "F5": [-1, -1],
+  "PO3": [-1, 1],
+  "PO4": [1, 1],
+  "F6": [1, -1],
+  "C4": [1, -1],
+  "CP4": [1, 1]
+}
+
+const bandColors = {
+  delta: "rgb(226,12,151)",
+  theta: "rgb(29,181,208)",
+  alpha: "rgb(97,35,127)",
+  beta: "rgb(4,138,129)",
+  gamma: "rgb(104,99,220)",
+};
+
+const initialPlacements = {
+  delta: [250, 250],
+  theta: [750, 250],
+  alpha: [500, 500],
+  gamma: [750, 750],
+  beta: [250, 750]
+}
+
+const calculatePositionVector = (channel_deltas) => {
+  // normalize channel deltas
+  const min = Math.min(...channel_deltas);
+  const max = Math.max(...channel_deltas);
+  const normalized = channel_deltas.map(delta => (delta - min) / (max - min));
+
+  const positionXVector = normalized.reduce((acc, delta, i) => acc + delta * positions[channel_names[i]][0], 0);
+  const positionYVector = normalized.reduce((acc, delta, i) => acc + delta * positions[channel_names[i]][1], 0);
+  return [positionXVector, positionYVector];
+}
+const MIN_SIZE = 5;
+const MAX_SIZE = 70;
+
+const initializeDots = () => {
+  return bands.map(band => ({
+    label: band,
+    positionX: initialPlacements[band][0],
+    positionY: initialPlacements[band][1],
+    size: (MIN_SIZE + MAX_SIZE) / 2,
+    colorString: bandColors[band]
+  }));
+}
+
 export function BrainWavesPainting() {
   const { user } = useNotion();
   const [getBrainWaves, setBrainWaves] = useSync({});
   const [getBrainWaveDeltas, setBrainWaveDeltas] = useSync({});
   const [getBrainWaveBaselineSamples, setBrainWaveBaselineSamples] = useSync([]);
   const [getBrainWaveBaselineAvg, setBrainWaveBaselineAvg] = useSync({});
-  const [getDotPositionX, setDotPositionX] = useSync(500);
-  const [getDotPositionY, setDotPositionY] = useSync(500);
-  const [getDotSize, setDotSize] = useSync(5);
-  const [getDotColorR, setDotColorR] = useSync(255);
-  const [getDotColorG, setDotColorG] = useSync(0);
-  const [getDotColorB, setDotColorB] = useSync(255);
-
-  const baselineSamples = 16;
+  const [getSpeedMultiplier, setSpeedMultiplier] = useSync(50);
+  const [getBaselineSamples, setBaselineSamples] = useSync(12);
+  const [getDots, setDots] = useSync(initializeDots());
 
   const calculateDeltaFromBaseline = () => {
     return Object.keys(getBrainWaveBaselineAvg()).reduce((acc, band) => {
-      acc[band] = getBrainWaveBaselineAvg()[band].map((wave, i) => wave - getBrainWaves()[band][i]);
+      acc[band] = getBrainWaveBaselineAvg()[band].map((wave, i) => (wave - getBrainWaves()[band][i]) / wave);
       return acc;
     }, {});
   };
@@ -93,67 +140,46 @@ export function BrainWavesPainting() {
     return Object.keys(getBrainWaveBaselineAvg()).length > 0;
   };
 
-  const updateDot = () => {
-    const avg = Object.keys(calculateDeltaFromBaseline()).reduce((acc, band) => {
-      acc[band] = avgBand(calculateDeltaFromBaseline()[band]);
-      return acc;
-    }, {});
-    const allBandAvg = Object.values(avg).reduce((acc, wave) => acc + wave, 0) / Object.keys(avg).length;
-    setDotPositionX(prevX => {
-      const newX = prevX + (avg.alpha * 0.5);
-      if (newX < 0) {
-        return 1000 + newX;
-      } else if (newX > 1000) {
-        return newX - 1000;
+  const updateDots = () => {
+    const delta = calculateDeltaFromBaseline();
+
+    const avgs = Object.keys(delta).map(band => avgBand(delta[band]));
+    const minAvg = Math.min(...avgs);
+    const maxAvg = Math.max(...avgs);
+
+    setDots(prevDots => prevDots.map(dot => {
+      const averageDelta = avgBand(delta[dot.label]);
+      let deviation = (averageDelta - minAvg) / (maxAvg - minAvg);
+      deviation = (deviation - 0.5) * 0.1;
+      let newSize = dot.size * (1 + deviation);
+      if (newSize < MIN_SIZE) {
+        newSize = MIN_SIZE;
+      } else if (newSize > MAX_SIZE) {
+        newSize = MAX_SIZE;
       }
-      return newX;
-    });
-    setDotPositionY(prevY => {
-      const newY = prevY + (avg.beta * 0.5);
-      if (newY < 0) {
-        return 1000 + newY;
-      } else if (newY > 1000) {
-        return newY - 1000;
+      const [positionXVector, positionYVector] = calculatePositionVector(delta[dot.label]);
+
+
+      let newPositionX = dot.positionX + positionXVector * getSpeedMultiplier();
+      let newPositionY = dot.positionY + positionYVector * getSpeedMultiplier();
+      if (newPositionX < 0) {
+        newPositionX = 1000 - newPositionX;
+      } else if (newPositionX > 1000) {
+        newPositionX = newPositionX - 1000;
       }
-      return newY;
-    });
-    setDotSize(prevSize => {
-      // average all bands
-      const newSize = prevSize + allBandAvg;
-      if (newSize < 0) {
-        return 1;
-      } else if (newSize > 10) {
-        return 10;
+      if (newPositionY < 0) {
+        newPositionY = 1000 - newPositionY;
+      } else if (newPositionY > 1000) {
+        newPositionY = newPositionY - 1000;
       }
-      return newSize;
-    });
-    setDotColorR(prevR => {
-      const newR = prevR + avg.theta;
-      if (newR < 0) {
-        return 255 + newR;
-      } else if (newR > 255) {
-        return newR - 255;
-      }
-      return newR;
-    });
-    setDotColorG(prevG => {
-      const newG = prevG + avg.delta;
-      if (newG < 0) {
-        return 255 + newG;
-      } else if (newG > 255) {
-        return newG - 255;
-      }
-      return newG;
-    });
-    setDotColorB(prevB => {
-      const newB = prevB + avg.gamma;
-      if (newB < 0) {
-        return 255 + newB;
-      } else if (newB > 255) {
-        return newB - 255;
-      }
-      return newB;
-    });
+
+      return {
+        ...dot,
+        positionX: newPositionX,
+        positionY: newPositionY,
+        size: newSize
+      };
+    }));
   };
 
   useEffect(() => {
@@ -181,10 +207,8 @@ export function BrainWavesPainting() {
           return acc;
         }, {})
       );
-      if (getBrainWaveBaselineSamples().length < baselineSamples) {
-        console.log("Adding to baseline samples");
+      if (getBrainWaveBaselineSamples().length < getBaselineSamples()) {
         setBrainWaveBaselineSamples([...getBrainWaveBaselineSamples(), brainwaves.data]);
-      // } else if (Object.keys(getBrainWaveBaselineAvg()).length === 0) {
       } else {
         const sum = getBrainWaveBaselineSamples().reduce((sum_acc, sample) => {
           Object.keys(sample).forEach((band) => {
@@ -204,11 +228,10 @@ export function BrainWavesPainting() {
           avg_acc[band] = sum[band].map((wave) => wave / baselineSampleCount);
           return avg_acc;
         }, {});
-        console.log(avg);
         setBrainWaveBaselineAvg(avg);
         setBrainWaveBaselineSamples(prevSamples => prevSamples.slice(1));
       } if (Object.keys(getBrainWaveBaselineAvg()).length === 5) {
-        updateDot();
+        updateDots();
       }
     });
 
@@ -221,37 +244,55 @@ export function BrainWavesPainting() {
     <main className="main-container bg-gray-200 p-4 flex flex-col">
       {
         doesHaveAvg() ? (
-          <BrainWaveDot
-            positionX={getDotPositionX()}
-            positionY={getDotPositionY()}
-            size={getDotSize()}
-            colorR={getDotColorR()}
-            colorG={getDotColorG()}
-            colorB={getDotColorB()}
-          />
+          <>
+            <BrainWaveDots getDots={getDots} />
+            <button
+              className=" bg-blue-200 rounded-full p-2 hover:bg-blue-400 hover:text-white w-64"
+              onClick={() => {
+                setBrainWaveBaselineSamples([]);
+                setBrainWaveBaselineAvg({});
+                setDots(initializeDots());
+              }}
+            >
+              Reset
+            </button>
+            <div className="flex flex-col items-center mt-4 w-96">
+              <h2 className="text-lg font-semibold">Speed Multiplier</h2>
+              <input
+                className="w-full"
+                type="range"
+                min="0.5"
+                max="100"
+                step="0.1"
+                value={getSpeedMultiplier()}
+                onChange={e => setSpeedMultiplier(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col items-center mt-4 w-96">
+              <h2 className="text-lg font-semibold">Trailing Samples to Delta from</h2>
+              <input
+                className="w-full"
+                type="range"
+                min="1"
+                max="32"
+                step="1"
+                value={getBaselineSamples()}
+                onChange={e => setBaselineSamples(e.target.value)}
+              />
+            </div>
+          </>
         ) : (
           <div className="flex flex-col items-center justify-center border rounded-lg p-2 m-2 w-2/3">
             <span className="text-center mb-2">Capturing Baseline...</span>
             <div className="bg-white rounded-full p-2 w-full">
               <div className={`bg-blue-500 rounded-full h-4`}
                 style={{
-                  width: `${getBrainWaveBaselineSamples().length / baselineSamples * 100}%`
+                  width: `${getBrainWaveBaselineSamples().length / getBaselineSamples() * 100}%`
                 }}></div>
             </div>
           </div>
         )
       }
-      {
-        doesHaveAvg() &&
-        <button
-          className=" bg-blue-200 rounded-full p-2 hover:bg-blue-400 hover:text-white w-64"
-          onClick={() => {
-            setBrainWaveBaselineSamples([]);
-            setBrainWaveBaselineAvg({});
-          }}
-        >
-          Reset Baseline
-        </button>}
     </main>
   );
 }
