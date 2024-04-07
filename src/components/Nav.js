@@ -15,7 +15,7 @@ export function Nav() {
       <button onClick={goToLogout} className="card-btn">
         Logout
       </button>
-      <Footer />
+      {/* <Footer /> */}
     </nav>
   );
 }

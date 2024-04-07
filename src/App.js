@@ -7,8 +7,11 @@ import { Loading } from "./components/Loading";
 import { Login } from "./pages/Login";
 import { Logout } from "./pages/Logout";
 import { Calm } from "./pages/Calm";
+import { SignalQuality } from "./pages/SignalQuality";
 
 import { useNotion } from "./services/notion";
+import { BrainWaves } from "./pages/BrainWaves";
+import { BrainWavesPainting } from "./pages/BrainWavesPainting";
 
 export function App() {
   return (
@@ -33,7 +36,10 @@ function Routes() {
 
   return (
     <Router>
-      <Calm path="/" />
+      <BrainWaves path="/brain-waves" />
+      <BrainWavesPainting path="/" />
+      <Calm path="/calm" />
+      <SignalQuality path="/signal-quality" />
       <Devices path="/devices" />
       <Login path="/login" />
       <Logout path="/logout" />

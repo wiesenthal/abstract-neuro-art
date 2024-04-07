@@ -35,6 +35,7 @@ export function Calm() {
       <div className="calm-score">
         &nbsp;{calm}% <div className="calm-word">Calm</div>
       </div>
+      <div className="text-3xl font-bold underline">Test</div>
     </main>
   );
 }
