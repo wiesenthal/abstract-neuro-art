@@ -110,7 +110,7 @@ const initializeDots = () => {
     label: band,
     positionX: initialPlacements[band][0],
     positionY: initialPlacements[band][1],
-    size: (MIN_SIZE + MAX_SIZE) / 2,
+    size: (MIN_SIZE + MAX_SIZE) / 3,
     colorString: bandColors[band]
   }));
 }
@@ -121,8 +121,8 @@ export function BrainWavesPainting() {
   const [getBrainWaveDeltas, setBrainWaveDeltas] = useSync({});
   const [getBrainWaveBaselineSamples, setBrainWaveBaselineSamples] = useSync([]);
   const [getBrainWaveBaselineAvg, setBrainWaveBaselineAvg] = useSync({});
-  const [getSpeedMultiplier, setSpeedMultiplier] = useSync(50);
-  const [getBaselineSamples, setBaselineSamples] = useSync(12);
+  const [getSpeedMultiplier, setSpeedMultiplier] = useSync(40);
+  const [getBaselineSamples, setBaselineSamples] = useSync(8);
   const [getDots, setDots] = useSync(initializeDots());
 
   const calculateDeltaFromBaseline = () => {

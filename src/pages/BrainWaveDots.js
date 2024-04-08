@@ -38,7 +38,7 @@ const BrainWaveDots = ({ getDots }) => {
         || (prevDots.current[i].positionX - dot.positionX) ** 2 + (prevDots.current[i].positionY - dot.positionY) ** 2 > 500 ** 2
       ) {
         ctx.beginPath();
-        ctx.arc(dot.positionX, dot.positionY, dot.size, 0, 2 * Math.PI);
+        ctx.arc(dot.positionX, dot.positionY, dot.size / 2, 0, 2 * Math.PI);
         ctx.fillStyle = dot.colorString;
         ctx.fill();
         ctx.closePath();
